@@ -26,7 +26,7 @@ function statusColor(code) {
   return STATUS_COLORS[prefix] || 'text-slate-400';
 }
 
-export default function TestCaseCard({ testCase: tc, categoryMeta }) {
+export default function TestCaseCard({ testCase: tc, categoryMeta, runResult }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -50,7 +50,15 @@ export default function TestCaseCard({ testCase: tc, categoryMeta }) {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-slate-700 transition-colors">
+    <div className={`bg-slate-900 border rounded-xl overflow-hidden transition-colors ${
+      runResult
+        ? runResult.error
+          ? 'border-slate-700'
+          : runResult.passed
+            ? 'border-emerald-800/60 hover:border-emerald-700/60'
+            : 'border-red-900/60 hover:border-red-800/60'
+        : 'border-slate-800 hover:border-slate-700'
+    }`}>
       {/* Card header — always visible */}
       <div
         className="flex items-start gap-3 px-5 py-4 cursor-pointer select-none"
@@ -70,6 +78,22 @@ export default function TestCaseCard({ testCase: tc, categoryMeta }) {
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PRIORITY_COLORS[tc.priority] || PRIORITY_COLORS.Low}`}>
               {tc.priority}
             </span>
+
+            {/* Run result badge */}
+            {runResult && (
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                runResult.error
+                  ? 'bg-slate-800 text-slate-400'
+                  : runResult.passed
+                    ? 'bg-emerald-900/60 text-emerald-300'
+                    : 'bg-red-900/60 text-red-300'
+              }`}>
+                {runResult.error ? '⚡ Error' : runResult.passed ? `✓ ${runResult.actualStatus}` : `✗ ${runResult.actualStatus}`}
+                {runResult.responseTime != null && (
+                  <span className="text-xs opacity-70 ml-0.5">{runResult.responseTime}ms</span>
+                )}
+              </span>
+            )}
           </div>
 
           <p className="font-semibold text-white text-sm leading-snug">{tc.name}</p>
@@ -88,8 +112,20 @@ export default function TestCaseCard({ testCase: tc, categoryMeta }) {
               <span className={`font-mono font-semibold ${statusColor(tc.expectedResponse.statusCode)}`}>
                 {tc.expectedResponse.statusCode}
               </span>
+              {runResult && !runResult.error && !runResult.passed && (
+                <span className="text-slate-600 ml-1">
+                  / Got: <span className={`font-mono font-semibold ${statusColor(runResult.actualStatus)}`}>{runResult.actualStatus}</span>
+                </span>
+              )}
             </span>
           </div>
+
+          {/* Error message from run */}
+          {runResult?.error && (
+            <p className="text-xs text-amber-400 mt-2 font-mono bg-amber-950/20 rounded px-2 py-1">
+              {runResult.error}
+            </p>
+          )}
         </div>
 
         {/* Expand arrow */}

@@ -1,6 +1,33 @@
 const axios = require('axios');
 const yaml = require('js-yaml');
 
+function resolveRef(ref, rootSpec) {
+  if (!ref || !ref.startsWith('#/')) return {};
+  const parts = ref.slice(2).split('/');
+  let node = rootSpec;
+  for (const part of parts) {
+    // JSON Pointer unescaping
+    node = node?.[part.replace(/~1/g, '/').replace(/~0/g, '~')];
+    if (node === undefined) return {};
+  }
+  return node;
+}
+
+function deepResolve(schema, rootSpec, depth = 0) {
+  if (depth > 6 || schema === null || schema === undefined) return schema;
+  if (typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map((s) => deepResolve(s, rootSpec, depth));
+  if (schema.$ref) {
+    const resolved = resolveRef(schema.$ref, rootSpec);
+    return deepResolve(resolved, rootSpec, depth + 1);
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(schema)) {
+    out[k] = deepResolve(v, rootSpec, depth + 1);
+  }
+  return out;
+}
+
 async function parseSwaggerUrl(url) {
   const response = await axios.get(url, {
     timeout: 15000,
@@ -9,7 +36,6 @@ async function parseSwaggerUrl(url) {
 
   let spec = response.data;
 
-  // Parse YAML if needed
   if (typeof spec === 'string') {
     try {
       spec = yaml.load(spec);
@@ -28,6 +54,8 @@ async function parseSwaggerUrl(url) {
     description: spec.info?.description || '',
     baseUrl: extractBaseUrl(spec),
     endpoints: [],
+    // Pass a compact version of the spec for AI context (large specs get truncated in formatApiDetails)
+    spec: compactSpec(spec),
   };
 
   const paths = spec.paths || {};
@@ -37,24 +65,26 @@ async function parseSwaggerUrl(url) {
       if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) continue;
       if (typeof operation !== 'object') continue;
 
-      // Extract request body schema
       let requestBodySchema = null;
       if (operation.requestBody) {
         const content = operation.requestBody.content || {};
         const jsonContent = content['application/json'] || content['*/*'] || Object.values(content)[0];
-        if (jsonContent?.schema) requestBodySchema = jsonContent.schema;
+        if (jsonContent?.schema) {
+          requestBodySchema = deepResolve(jsonContent.schema, spec);
+        }
       }
 
-      // Extract response schemas
       const responses = {};
       for (const [code, resp] of Object.entries(operation.responses || {})) {
         const content = resp.content || {};
         const jsonContent = content['application/json'] || Object.values(content)[0];
         responses[code] = {
           description: resp.description || '',
-          schema: jsonContent?.schema || null,
+          schema: jsonContent?.schema ? deepResolve(jsonContent.schema, spec) : null,
         };
       }
+
+      const parameters = (operation.parameters || []).map((p) => deepResolve(p, spec));
 
       info.endpoints.push({
         method: method.toUpperCase(),
@@ -63,7 +93,7 @@ async function parseSwaggerUrl(url) {
         description: operation.description || '',
         operationId: operation.operationId || '',
         tags: operation.tags || [],
-        parameters: operation.parameters || [],
+        parameters,
         requestBody: requestBodySchema,
         responses,
         security: operation.security || spec.security || [],
@@ -75,17 +105,25 @@ async function parseSwaggerUrl(url) {
 }
 
 function extractBaseUrl(spec) {
-  // OpenAPI 3.x
-  if (spec.servers && spec.servers.length > 0) {
-    return spec.servers[0].url || '';
-  }
-  // Swagger 2.x
+  if (spec.servers?.length > 0) return spec.servers[0].url || '';
   if (spec.host) {
     const scheme = spec.schemes?.[0] || 'https';
     const basePath = spec.basePath || '';
     return `${scheme}://${spec.host}${basePath}`;
   }
   return '';
+}
+
+// Return a trimmed spec object that has schemas/definitions but strips the full paths detail
+// (endpoints are already extracted above; this gives the AI type definitions context)
+function compactSpec(spec) {
+  const compact = {};
+  if (spec.info) compact.info = spec.info;
+  if (spec.components?.schemas) compact.schemas = spec.components.schemas;
+  if (spec.definitions) compact.definitions = spec.definitions;
+  if (spec.securityDefinitions) compact.securityDefinitions = spec.securityDefinitions;
+  if (spec.components?.securitySchemes) compact.securitySchemes = spec.components.securitySchemes;
+  return compact;
 }
 
 module.exports = { parseSwaggerUrl };

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import MethodBadge from './MethodBadge';
 
 const EXAMPLE_CURL = `curl -X POST https://api.example.com/v1/users \\
   -H "Content-Type: application/json" \\
@@ -79,7 +80,6 @@ export default function CurlInput({ onGenerate }) {
 
       {parsed && (
         <div className="space-y-4">
-          {/* Parsed preview */}
           <div className="bg-slate-950 border border-slate-700 rounded-xl p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Parsed Request</p>
             <div className="flex items-center gap-3">
@@ -131,20 +131,5 @@ export default function CurlInput({ onGenerate }) {
         </div>
       )}
     </div>
-  );
-}
-
-function MethodBadge({ method }) {
-  const colors = {
-    GET: 'bg-emerald-900/50 text-emerald-400',
-    POST: 'bg-blue-900/50 text-blue-400',
-    PUT: 'bg-amber-900/50 text-amber-400',
-    PATCH: 'bg-purple-900/50 text-purple-400',
-    DELETE: 'bg-red-900/50 text-red-400',
-  };
-  return (
-    <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded shrink-0 ${colors[method] || 'bg-slate-800 text-slate-400'}`}>
-      {method}
-    </span>
   );
 }

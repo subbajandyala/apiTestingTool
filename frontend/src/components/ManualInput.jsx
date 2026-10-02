@@ -101,8 +101,19 @@ export default function ManualInput({ onGenerate }) {
 
     let body = null;
     if (bodyText.trim()) {
-      try { body = JSON.parse(bodyText); }
-      catch { body = bodyText; }
+      if (bodyType === 'json') {
+        try { body = JSON.parse(bodyText); } catch { body = bodyText; }
+      } else if (bodyType === 'form') {
+        // Parse newline- or &-separated key=value pairs
+        const formObj = {};
+        bodyText.split(/[\n&]+/).forEach((line) => {
+          const eq = line.indexOf('=');
+          if (eq > 0) formObj[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+        });
+        body = formObj;
+      } else {
+        body = bodyText; // raw text
+      }
     }
 
     const allHeaders = toObject(headers);
@@ -125,6 +136,7 @@ export default function ManualInput({ onGenerate }) {
       headers: allHeaders,
       queryParams: toObject(queryParams),
       body,
+      bodyType,
       auth,
     });
   };

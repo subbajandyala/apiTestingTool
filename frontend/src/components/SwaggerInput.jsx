@@ -1,9 +1,5 @@
 import { useState } from 'react';
-
-const EXAMPLES = [
-  { label: 'Petstore', url: 'https://petstore.swagger.io/v2/swagger.json' },
-  { label: 'JSONPlaceholder (mock)', url: '' },
-];
+import MethodBadge from './MethodBadge';
 
 export default function SwaggerInput({ onGenerate }) {
   const [url, setUrl] = useState('');
@@ -38,7 +34,7 @@ export default function SwaggerInput({ onGenerate }) {
   };
 
   const handleGenerate = () => {
-    if (!selectedEndpoint) return;
+    if (!selectedEndpoint === null || selectedEndpoint === null) return;
     const ep = endpoints[selectedEndpoint];
     onGenerate({
       method: ep.method,
@@ -50,6 +46,7 @@ export default function SwaggerInput({ onGenerate }) {
       parameters: ep.parameters,
       responses: ep.responses,
       auth: ep.security?.length > 0 ? 'Required (see security schemes)' : null,
+      swaggerSpec: specInfo.spec || null,
     });
   };
 
@@ -77,7 +74,6 @@ export default function SwaggerInput({ onGenerate }) {
           </button>
         </div>
 
-        {/* Quick examples */}
         <div className="flex items-center gap-2 mt-2">
           <span className="text-xs text-slate-600">Try:</span>
           <button
@@ -147,20 +143,5 @@ export default function SwaggerInput({ onGenerate }) {
         </div>
       )}
     </div>
-  );
-}
-
-function MethodBadge({ method }) {
-  const colors = {
-    GET: 'bg-emerald-900/50 text-emerald-400',
-    POST: 'bg-blue-900/50 text-blue-400',
-    PUT: 'bg-amber-900/50 text-amber-400',
-    PATCH: 'bg-purple-900/50 text-purple-400',
-    DELETE: 'bg-red-900/50 text-red-400',
-  };
-  return (
-    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded shrink-0 ${colors[method] || 'bg-slate-800 text-slate-400'}`}>
-      {method}
-    </span>
   );
 }

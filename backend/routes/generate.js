@@ -3,8 +3,8 @@ const router = express.Router();
 const { generateTestCases } = require('../services/testGenerator');
 const { parseSwaggerUrl } = require('../services/swaggerParser');
 const { parseCurlCommand } = require('../services/curlParser');
+const { runTests } = require('../services/testRunner');
 
-// Parse a Swagger/OpenAPI URL and return structured endpoints
 router.post('/parse-swagger', async (req, res) => {
   try {
     const { url } = req.body;
@@ -16,7 +16,6 @@ router.post('/parse-swagger', async (req, res) => {
   }
 });
 
-// Parse a curl command into API details
 router.post('/parse-curl', (req, res) => {
   try {
     const { curl } = req.body;
@@ -46,6 +45,20 @@ router.post('/generate', async (req, res) => {
   } catch (error) {
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
     res.end();
+  }
+});
+
+// Execute test cases against a live API
+router.post('/run-tests', async (req, res) => {
+  const { testCases, baseUrl } = req.body;
+  if (!testCases || !Array.isArray(testCases)) {
+    return res.status(400).json({ error: 'testCases array is required' });
+  }
+  try {
+    const results = await runTests(testCases, baseUrl || '');
+    res.json({ results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

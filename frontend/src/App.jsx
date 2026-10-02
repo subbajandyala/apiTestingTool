@@ -10,7 +10,7 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
 
-  const handleGenerate = async (apiDetails) => {
+  const handleGenerate = async (apiDetails, attempt = 0) => {
     setIsGenerating(true);
     setTestResults(null);
     setError(null);
@@ -38,15 +38,16 @@ function App() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep incomplete last line
+        buffer = lines.pop();
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
             const data = JSON.parse(line.slice(6));
             if (data.progress !== undefined) {
-              // Rough progress based on chars generated (typical response ~8k chars)
-              setProgress(Math.min(90, Math.round((data.progress / 8000) * 90)));
+              // Logarithmic scale: asymptotically approaches 90% as chars grow
+              const pct = 90 * (1 - Math.exp(-data.progress / 6000));
+              setProgress(Math.min(90, Math.round(pct)));
             } else if (data.done && data.result) {
               setProgress(100);
               setTestResults(data.result);
@@ -61,6 +62,11 @@ function App() {
         }
       }
     } catch (err) {
+      // Retry up to 2 times on network/stream errors
+      if (attempt < 2 && (err.name === 'TypeError' || err.message?.includes('stream') || err.message?.includes('network'))) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        return handleGenerate(apiDetails, attempt + 1);
+      }
       setError(err.message);
     } finally {
       setIsGenerating(false);
